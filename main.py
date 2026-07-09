@@ -4,7 +4,7 @@ from tracker import Tracker
 from tle import TLELoader
 from guider import Guider
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 import time
 
