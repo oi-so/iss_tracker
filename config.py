@@ -1,0 +1,10 @@
+from skyfield.api import wgs84
+
+# 立川高校（おおよその位置）
+OBSERVER = wgs84.latlon(
+    latitude_degrees=35.6924639,
+    longitude_degrees=139.4128300,
+    elevation_m=95,
+)
+
+TLE_URL = "https://celestrak.org/NORAD/elements/stations.txt"
