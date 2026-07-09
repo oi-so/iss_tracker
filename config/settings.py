@@ -1,5 +1,6 @@
-from skyfield.api import wgs84
 from pathlib import Path
+
+from skyfield.api import wgs84
 
 # 立川高校（おおよその位置）
 OBSERVER = wgs84.latlon(
@@ -10,5 +11,5 @@ OBSERVER = wgs84.latlon(
 
 TLE_URL = "https://celestrak.org/NORAD/elements/stations.txt"
 
-# オフライン環境向け
+# オフライン環境向け: 既定のローカルTLEファイル
 DEFAULT_LOCAL_TLE_PATH = Path("data") / "iss.tle"

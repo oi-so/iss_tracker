@@ -12,9 +12,8 @@ sys.path.insert(0, '.')
 
 from core.ascom.interface import GuideDirection, MountPosition
 from core.ascom.telescope import ASCOMTelescope
+from core.astronomy import OrbitCalculator, TLELoader
 from utils.units import CoordinateConverter
-from orbit import OrbitCalculator
-from tle import TLELoader
 
 
 def test_ascom_connection():

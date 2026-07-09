@@ -1,164 +1,108 @@
-from orbit import OrbitCalculator
-from telescope import Telescope
-from tracker import Tracker
-from tle import TLELoader
-from guider import Guider
-
-from datetime import datetime
-from zoneinfo import ZoneInfo
+import argparse
 import time
+from datetime import datetime, timedelta, timezone
+
+from core.ascom import ASCOMTelescope, MountSimulator
+from core.astronomy import OrbitCalculator, TLELoader
+from core.tracking import Guider, GuiderConfig, ISSTracker, TrackingConfig
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="ISS tracker for E-ZEUS II (ASCOM)")
+    parser.add_argument(
+        "--mount",
+        choices=["simulate", "ascom"],
+        default="simulate",
+        help="使用する架台。実機は ascom",
+    )
+    parser.add_argument(
+        "--duration",
+        type=float,
+        default=120.0,
+        help="追尾時間 [秒]",
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=0.1,
+        help="追尾周期 [秒]",
+    )
+    parser.add_argument(
+        "--start-in",
+        type=float,
+        default=5.0,
+        help="何秒後に導入開始するか [秒]",
+    )
+    parser.add_argument(
+        "--tle-file",
+        type=str,
+        default="data/iss.tle",
+        help="ローカルTLEファイルのパス",
+    )
+    parser.add_argument(
+        "--allow-network",
+        action="store_true",
+        help="ローカルTLEが無い場合にネット取得を許可",
+    )
+    parser.add_argument(
+        "--acquire-only",
+        action="store_true",
+        help="導入だけ実行して終了",
+    )
+    return parser.parse_args()
+
+
+def build_mount(kind: str):
+    if kind == "ascom":
+        return ASCOMTelescope()
+    return MountSimulator()
 
 
 def main():
+    args = parse_args()
 
-    # -------------------------
-    # TLE
-    # -------------------------
-
+    # TLE / Orbit
     tle = TLELoader()
-    tle.update()
+    tle.update(local_path=args.tle_file, allow_network=args.allow_network)
+    orbit = OrbitCalculator(tle.satellite)
 
-    orbit = OrbitCalculator(
-        tle.satellite
-    )
-
-
-    # -------------------------
-    # Telescope
-    # -------------------------
-
-    telescope = Telescope()
-
-    telescope.connect()
-
+    # Mount
+    mount = build_mount(args.mount)
+    mount.connect()
 
     try:
-
-        # -------------------------
-        # 現在位置確認
-        # -------------------------
-
-        ra, dec = telescope.get_position()
-
+        # 現在位置
+        mount_pos = mount.get_position()
         print(
-            f"Current position "
-            f"RA={ra:.4f}deg "
-            f"DEC={dec:.4f}deg"
+            f"Mount now: RA={mount_pos.ra_hours:.4f}h "
+            f"Dec={mount_pos.dec_degrees:.4f}°"
         )
 
-        # return
+        # 追尾時刻
+        track_start = datetime.now(timezone.utc) + timedelta(seconds=args.start_in)
+        wait_sec = (track_start - datetime.now(timezone.utc)).total_seconds()
+        if wait_sec > 0:
+            print(f"Start in {wait_sec:.1f}s")
+            time.sleep(wait_sec)
 
+        # Tracker
+        guider = Guider(mount, GuiderConfig())
+        tracking_config = TrackingConfig()
+        tracking_config.pulse_interval_sec = args.interval
+        tracker = ISSTracker(mount=mount, orbit=orbit, guider=guider, config=tracking_config)
 
-        # -------------------------
-        # 追尾開始時刻
-        # -------------------------
+        # 導入
+        tracker.acquire(track_start)
 
-        track_start = datetime(
-            2026,
-            7,
-            9,
-            19,
-            51,
-            00,
-            tzinfo=ZoneInfo(
-                "Asia/Tokyo"
-            )
-        )
+        if args.acquire_only:
+            print("Acquire only 完了")
+            return
 
-
-        now = datetime.now(
-            ZoneInfo("Asia/Tokyo")
-        )
-
-
-        wait = (
-            track_start - now
-        ).total_seconds()
-
-
-        if wait > 0:
-
-            print(
-                f"Waiting {wait:.1f}s"
-            )
-
-            time.sleep(wait)
-
-
-
-        # -------------------------
-        # ISS導入
-        # -------------------------
-
-        skyfield_time = orbit.ts.from_datetime(
-            track_start
-        )
-
-
-        # GoToにかかる時間を考慮
-        goto_delay = 20
-
-
-        target = orbit.get_position_after(
-            skyfield_time,
-            goto_delay
-        )
-
-
-        print(
-            "ISS target:"
-            f"RA={target.ra.hours:.4f}h "
-            f"DEC={target.dec.degrees:.4f}deg"
-        )
-
-
-        telescope.goto(
-            target.ra,
-            target.dec
-        )
-
-
-        print(
-            "Slewing..."
-        )
-
-
-        telescope.wait_slew()
-
-
-        print(
-            "Slew completed"
-        )
-
-
-
-        # -------------------------
-        # 追尾開始
-        # -------------------------
-
-        guider = Guider(
-            telescope
-        )
-
-
-        tracker = Tracker(
-            orbit,
-            telescope,
-            guider,
-        )
-
-
-        tracker.track(
-            duration=300,
-            interval=0.05,
-            base_time=skyfield_time,
-        )
-
+        # 追尾
+        tracker.start_tracking(start_time=track_start, duration_sec=args.duration)
 
     finally:
-
-        telescope.disconnect()
-
+        mount.disconnect()
 
 
 if __name__ == "__main__":

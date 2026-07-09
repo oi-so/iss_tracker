@@ -1,15 +1,11 @@
 from predictor import Predictor
-
-
-from predictor import Predictor
 from orbit import OrbitCalculator
 from tle import TLELoader
 
 
 def main():
-
     tle = TLELoader()
-    tle.update()
+    tle.update(local_path="data/iss.tle", allow_network=False)
 
     orbit = OrbitCalculator(tle.satellite)
     predictor = Predictor(orbit)

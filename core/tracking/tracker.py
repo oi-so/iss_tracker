@@ -5,8 +5,7 @@ ISS軌道計算と赤道儀制御を統合
 """
 
 import time
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime
 
 from core.ascom.interface import MountInterface
 from core.astronomy.orbit_calculator import OrbitCalculator
@@ -189,7 +188,7 @@ class ISSTracker:
                 future_dec_deg = future_iss_pos.dec.degrees
                 
                 ra_velocity_deg_per_sec = (
-                    (future_ra_deg - iss_ra_deg) /
+                    (self._shortest_angle_diff_deg(iss_ra_deg, future_ra_deg)) /
                     self.config.pulse_interval_sec
                 )
                 dec_velocity_deg_per_sec = (
@@ -205,7 +204,7 @@ class ISSTracker:
                 mount_dec_deg = mount_pos.dec_degrees
                 
                 # 位置誤差計算
-                ra_error_deg = iss_ra_deg - mount_ra_deg
+                ra_error_deg = self._shortest_angle_diff_deg(mount_ra_deg, iss_ra_deg)
                 dec_error_deg = iss_dec_deg - mount_dec_deg
                 
                 # ガイド補正実行
@@ -285,3 +284,9 @@ class ISSTracker:
         estimated = min(estimated, self.config.max_slew_time_sec)
         
         return estimated
+
+    @staticmethod
+    def _shortest_angle_diff_deg(from_deg: float, to_deg: float) -> float:
+        """角度差 (to - from) を -180..180 の範囲で返す。"""
+        diff = (to_deg - from_deg + 180.0) % 360.0 - 180.0
+        return diff

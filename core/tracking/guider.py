@@ -5,7 +5,6 @@ ISS追尾用のガイド補正速度を計算し、PulseGuideに変換
 """
 
 from core.ascom.interface import MountInterface, GuideDirection
-from utils.units import CoordinateConverter
 
 
 class GuiderConfig:
@@ -13,6 +12,7 @@ class GuiderConfig:
     kp: float = 0.05  # P制御ゲイン
     max_pulse_ms: int = 500  # 最大パルス時間
     dead_band_deg: float = 0.01  # デッドバンド（度）
+    pulse_gain_ms_per_deg_per_sec: float = 120.0  # 速度→パルス時間 変換ゲイン
 
 
 class Guider:
@@ -99,10 +99,10 @@ class Guider:
             )
             
             # 速度 → パルス時間に変換
-            # 仮定: 0.1度/100msのガイド感度
             ra_pulse_ms = int(
-                abs(ra_rate_deg_per_sec) * 100
-            ) % self.config.max_pulse_ms
+                abs(ra_rate_deg_per_sec) * self.config.pulse_gain_ms_per_deg_per_sec
+            )
+            ra_pulse_ms = min(self.config.max_pulse_ms, ra_pulse_ms)
             
             if ra_pulse_ms > 0:
                 try:
@@ -120,8 +120,9 @@ class Guider:
             
             # 速度 → パルス時間に変換
             dec_pulse_ms = int(
-                abs(dec_rate_deg_per_sec) * 100
-            ) % self.config.max_pulse_ms
+                abs(dec_rate_deg_per_sec) * self.config.pulse_gain_ms_per_deg_per_sec
+            )
+            dec_pulse_ms = min(self.config.max_pulse_ms, dec_pulse_ms)
             
             if dec_pulse_ms > 0:
                 try:
