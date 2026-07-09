@@ -1,3 +1,4 @@
 skyfield
 requests
 pywin32
+tzdata

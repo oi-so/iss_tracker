@@ -90,7 +90,7 @@ iss_tracker/
 ├── predictor.py
 ├── tracker.py
 ├── guider.py
-├── mount_simulator.py
+├── telescope_simulator.py
 ├── telescope.py
 └── main.py
 
