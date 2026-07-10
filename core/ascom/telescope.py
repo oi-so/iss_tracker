@@ -82,18 +82,34 @@ class ASCOMTelescope(MountInterface):
             self._is_connected = True
             
             # 機能確認
-            self._detect_capabilities()
-            
+            self._detect_capabilities()      
+
+            if self.scope.AtPark:
+                print("Unparking...")
+                self.scope.Unpark()
+
+            # 恒星追尾をON
+            if not self.scope.Tracking:
+                print("Tracking ON")
+                self.scope.Tracking = True
+
+            try:
+                if self.scope.Slewing:
+                    print("Abort previous slew")
+                    self.scope.AbortSlew()
+            except Exception:
+                pass
+
             print(f"✓ 接続成功: {progid}")
             print(f"  機能: {', '.join([c.name for c in self._capabilities])}")
 
             print("CanPark =", self.scope.CanPark)
             print("CanUnpark =", self.scope.CanUnpark)
-
-            if self.scope.AtPark:
-                print("Unparking...")
-                self.scope.Unpark()
             
+
+            print(f"Tracking = {self.scope.Tracking}")
+            print(f"AtPark   = {self.scope.AtPark}")
+            print(f"Slewing  = {self.scope.Slewing}")
         except Exception:
             self._is_connected = False
             raise
@@ -168,9 +184,17 @@ class ASCOMTelescope(MountInterface):
         """
         if not self.is_connected():
             raise RuntimeError("赤道儀が未接続です")
-        
+
         if MountCapability.CAN_SLEW not in self._capabilities:
             raise RuntimeError("このドライバはSlewをサポートしていません")
+
+        if self.scope.AtPark:
+            print("Unparking...")
+            self.scope.Unpark()
+
+        if not self.scope.Tracking:
+            print("Tracking ON")
+            self.scope.Tracking = True
         
         # 座標値チェック
         if not (0 <= ra_hours <= 24):
