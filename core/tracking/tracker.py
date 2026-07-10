@@ -47,6 +47,7 @@ class ISSTracker:
         self.orbit = orbit
         self.guider = guider or Guider(mount)
         self.config = config or TrackingConfig()
+        self.offset_sec = 0.0  # 追尾開始時刻のオフセット（秒）
         
         self.is_tracking = False
     
@@ -100,7 +101,7 @@ class ISSTracker:
         # ISS未来位置を計算（Slew時間を考慮）
         future_iss_pos = self.orbit.get_position_after(
             skyfield_time,
-            slew_time
+            slew_time + self.offset_sec
         )
         
         target_ra_hours = future_iss_pos.ra.hours
@@ -166,13 +167,13 @@ class ISSTracker:
                 # ISS現在位置取得
                 current_iss_pos = self.orbit.get_position_after(
                     skyfield_time,
-                    elapsed
+                    elapsed + self.offset_sec
                 )
                 
                 # ISS未来位置取得（速度計算用）
                 future_iss_pos = self.orbit.get_position_after(
                     skyfield_time,
-                    elapsed + self.config.pulse_interval_sec
+                    elapsed + self.config.pulse_interval_sec + self.offset_sec
                 )
                 
                 # ISS位置（度）
@@ -290,3 +291,16 @@ class ISSTracker:
         """角度差 (to - from) を -180..180 の範囲で返す。"""
         diff = (to_deg - from_deg + 180.0) % 360.0 - 180.0
         return diff
+
+
+
+    def set_offset(self, offset_sec: float) -> None:
+        self.offset_sec = offset_sec
+
+    def get_offset(self) -> float:
+        return self.offset_sec
+    
+    def adjust_offset(self, delta_sec: float) -> None:
+        """追尾時刻オフセットを増減する"""
+        self.offset_sec += delta_sec
+        print(f"\nTime Offset = {self.offset_sec:+.2f} s")
