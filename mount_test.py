@@ -1,4 +1,4 @@
-from telescope import Telescope
+from core.ascom.telescope import Telescope
 from core.ascom.interface import MountCapability
 
 scope = Telescope()

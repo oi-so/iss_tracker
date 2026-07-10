@@ -557,8 +557,8 @@ from datetime import datetime, timezone
 from core.ascom.telescope import ASCOMTelescope
 from core.tracking.tracker import ISSTracker, TrackingConfig
 from core.tracking.guider import Guider
-from orbit import OrbitCalculator
-from tle import TLELoader
+from core.astronomy.orbit_calculator import OrbitCalculator
+from core.astronomy.tle_loader import TLELoader
 
 def main():
     # 初期化
@@ -597,8 +597,8 @@ if __name__ == "__main__":
 ```python
 from core.ascom.mock import MountSimulator
 from core.tracking.tracker import ISSTracker
-from orbit import OrbitCalculator
-from tle import TLELoader
+from core.astronomy.orbit_calculator import OrbitCalculator
+from core.astronomy.tle_loader import TLELoader
 from datetime import datetime, timezone
 
 tle = TLELoader()

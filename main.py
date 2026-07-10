@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from core.ascom import ASCOMTelescope, MountSimulator
 from core.astronomy import OrbitCalculator, TLELoader
 from core.tracking import Guider, GuiderConfig, ISSTracker, TrackingConfig
-from astro import get_object_coordinates
+from .utils.planet import get_object_coordinates
 
 import threading
 import msvcrt
