@@ -5,6 +5,12 @@ from datetime import datetime, timedelta, timezone
 from core.ascom import ASCOMTelescope, MountSimulator
 from core.astronomy import OrbitCalculator, TLELoader
 from core.tracking import Guider, GuiderConfig, ISSTracker, TrackingConfig
+from astro import get_object_coordinates
+
+import threading
+import msvcrt
+
+JST = timezone(timedelta(hours=9))
 
 
 def parse_args():
@@ -49,6 +55,38 @@ def parse_args():
         action="store_true",
         help="導入だけ実行して終了",
     )
+
+    parser.add_argument(
+        "--time-offset",
+        type=float,
+        default=0.0,
+        help="追尾開始時刻のオフセット [秒]",
+    )
+    parser.add_argument(
+        "--simulate-time",
+        type=str,
+        default=None,
+        help="シミュレーション開始時刻 (YYYY/MM/DD HH:MM:SS, JST)",
+    )
+
+    parser.add_argument(
+        "--align-object",
+        type=str,
+        default=None,
+        choices=[
+            "sun",
+            "moon",
+            "mercury",
+            "venus",
+            "mars",
+            "jupiter",
+            "saturn",
+            "uranus",
+            "neptune",
+        ],
+        help="初期アライメントを行った天体。追尾終了後はこの天体へ戻る。",
+    )
+
     return parser.parse_args()
 
 
@@ -58,48 +96,212 @@ def build_mount(kind: str):
     return MountSimulator()
 
 
+def keyboard_loop(tracker):
+    print(
+        "\n=== Keyboard ===\n"
+        "[←] または A : -0.1 s\n"
+        "[→] または D : +0.1 s\n"
+        "[Z]          : -1.0 s\n"
+        "[C]          : +1.0 s\n"
+        "[Q]          : 終了\n"
+    )
+
+    while tracker.is_tracking:
+        if not msvcrt.kbhit():
+            time.sleep(0.05)
+            continue
+
+        key = msvcrt.getch()
+
+        # 矢印キー
+        if key == b'\xe0':
+            key = msvcrt.getch()
+
+            if key == b'K':      # ←
+                tracker.adjust_offset(-0.1)
+
+            elif key == b'M':    # →
+                tracker.adjust_offset(+0.1)
+
+        else:
+            key = key.lower()
+
+            if key == b'a':
+                tracker.adjust_offset(-0.1)
+
+            elif key == b'd':
+                tracker.adjust_offset(+0.1)
+
+            elif key == b'z':
+                tracker.adjust_offset(-1.0)
+
+            elif key == b'c':
+                tracker.adjust_offset(+1.0)
+
+            elif key == b'q':
+                tracker.stop_tracking()
+                break
+
+
 def main():
     args = parse_args()
 
-    # TLE / Orbit
+    # TLE
     tle = TLELoader()
-    tle.update(local_path=args.tle_file, allow_network=args.allow_network)
+    tle.update(
+        local_path=args.tle_file,
+        allow_network=args.allow_network,
+    )
+
     orbit = OrbitCalculator(tle.satellite)
 
-    # Mount
     mount = build_mount(args.mount)
     mount.connect()
 
     try:
-        # 現在位置
+
         mount_pos = mount.get_position()
+
         print(
             f"Mount now: RA={mount_pos.ra_hours:.4f}h "
             f"Dec={mount_pos.dec_degrees:.4f}°"
         )
 
-        # 追尾時刻
-        track_start = datetime.now(timezone.utc) + timedelta(seconds=args.start_in)
-        wait_sec = (track_start - datetime.now(timezone.utc)).total_seconds()
-        if wait_sec > 0:
-            print(f"Start in {wait_sec:.1f}s")
-            time.sleep(wait_sec)
+        ####################################
+        # 開始時刻
+        ####################################
 
+        if args.simulate_time is None:
+
+            track_start = (
+                datetime.now(timezone.utc)
+                + timedelta(seconds=args.start_in)
+            )
+
+            wait = (
+                track_start
+                - datetime.now(timezone.utc)
+            ).total_seconds()
+
+            if wait > 0:
+                print(f"Start in {wait:.1f}s")
+                time.sleep(wait)
+
+        else:
+
+            track_start = (
+                datetime.strptime(
+                    args.simulate_time,
+                    "%Y/%m/%d %H:%M:%S",
+                )
+                .replace(tzinfo=JST)
+                .astimezone(timezone.utc)
+            )
+
+            print(
+                "Simulation Time:",
+                track_start.astimezone(JST).strftime(
+                    "%Y/%m/%d %H:%M:%S JST"
+                ),
+            )
+
+        print(
+            "Tracking time:",
+            track_start.astimezone(JST).strftime(
+                "%Y/%m/%d %H:%M:%S JST"
+            ),
+        )
+
+        ####################################
+        # アライメント天体保存
+        ####################################
+
+        align_ra = None
+        align_dec = None
+
+        if args.align_object is not None:
+
+            align_ra, align_dec = get_object_coordinates(
+                args.align_object,
+                orbit,
+                track_start,
+            )
+
+            print(
+                f"{args.align_object} : "
+                f"RA={align_ra:.4f}h "
+                f"Dec={align_dec:.4f}°"
+            )
+
+        ####################################
         # Tracker
-        guider = Guider(mount, GuiderConfig())
+        ####################################
+
+        guider = Guider(
+            mount,
+            GuiderConfig(),
+        )
+
         tracking_config = TrackingConfig()
         tracking_config.pulse_interval_sec = args.interval
-        tracker = ISSTracker(mount=mount, orbit=orbit, guider=guider, config=tracking_config)
 
-        # 導入
+        tracker = ISSTracker(
+            mount=mount,
+            orbit=orbit,
+            guider=guider,
+            config=tracking_config,
+        )
+
+        tracker.set_offset(args.time_offset)
+
+        ####################################
+        # ISS導入
+        ####################################
+
         tracker.acquire(track_start)
 
         if args.acquire_only:
-            print("Acquire only 完了")
             return
 
-        # 追尾
-        tracker.start_tracking(start_time=track_start, duration_sec=args.duration)
+        keyboard_thread = threading.Thread(
+            target=keyboard_loop,
+            args=(tracker,),
+            daemon=True,
+        )
+
+        keyboard_thread.start()
+
+        ####################################
+        # ISS追尾
+        ####################################
+
+        tracker.start_tracking(
+            start_time=track_start,
+            duration_sec=args.duration,
+        )
+
+        ####################################
+        # アライメント天体へ戻る
+        ####################################
+
+        if align_ra is not None:
+
+            print(
+                f"\nReturning to {args.align_object}..."
+            )
+
+            mount.slew_to_coordinates(
+                align_ra,
+                align_dec,
+                async_=True,
+            )
+
+            mount.wait_slew()
+
+            print("Finished.")
+
+    except Exception as e:
+        print(e)
 
     finally:
         mount.disconnect()
