@@ -160,12 +160,16 @@ def main():
 
     try:
 
-        mount_pos = mount.get_position()
+        try:
+            mount_pos = mount.get_position()
+            print(
+                f"Mount now: RA={mount_pos.ra_hours:.4f}h "
+                f"Dec={mount_pos.dec_degrees:.4f}°"
+            )
+        except Exception:
+            mount_pos = None
+            print("Mount now: Unknown")
 
-        print(
-            f"Mount now: RA={mount_pos.ra_hours:.4f}h "
-            f"Dec={mount_pos.dec_degrees:.4f}°"
-        )
 
         ####################################
         # 開始時刻

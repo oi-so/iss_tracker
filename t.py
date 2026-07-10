@@ -23,13 +23,13 @@ target_dec = 12.0 + (40.0 / 60.0) + (20.7 / 3600.0)
 print(f"Target RA (Decimal Hours): {target_ra}")
 print(f"Target Dec (Decimal Degrees): {target_dec}")
 
-# 2. ドライバーにターゲット座標を設定
 scope.TargetRightAscension = target_ra
 scope.TargetDeclination = target_dec
+scope.SyncToTarget()
 
-# 3. 同期（Sync）を実行
-# これにより、現在の望遠鏡の位置が上記座標に書き換わります（モーターは動きません）
-scope.SyncToTarget(target_ra, target_dec)
+# TODO: できなかったらこれを使う
+# scope.SyncToCoordinates(target_ra, target_dec)
+
 print("Sync Completed!")
 
 # --- 確認 ---
