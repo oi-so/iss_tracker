@@ -68,6 +68,10 @@ class ASCOMTelescope(MountInterface):
             
             # 接続確立
             try:
+                print(self.scope.DriverInfo)
+                print(self.scope.DriverVersion)
+                print(self.scope.InterfaceVersion)
+
                 self.scope.Connected = True
             except Exception as e:
                 self.scope = None
@@ -82,6 +86,13 @@ class ASCOMTelescope(MountInterface):
             
             print(f"✓ 接続成功: {progid}")
             print(f"  機能: {', '.join([c.name for c in self._capabilities])}")
+
+            print("CanPark =", self.scope.CanPark)
+            print("CanUnpark =", self.scope.CanUnpark)
+
+            if self.scope.AtPark:
+                print("Unparking...")
+                self.scope.Unpark()
             
         except Exception:
             self._is_connected = False
@@ -288,15 +299,38 @@ class ASCOMTelescope(MountInterface):
         """
         if not self.is_connected():
             raise RuntimeError("赤道儀が未接続です")
-        
+
         if MountCapability.CAN_SYNC not in self._capabilities:
-            raise RuntimeError("このドライバはSyncをサポートしていません")
-        
+            raise RuntimeError(
+                "このドライバはSyncをサポートしていません"
+            )
+
         try:
-            self.scope.SyncToCoordinates(ra_hours, dec_degrees)
-            print(f"✓ Sync実行: RA={ra_hours:.4f}h, Dec={dec_degrees:.4f}°")
+            # Targetも設定しておく
+            try:
+                self.scope.TargetRightAscension = ra_hours
+                self.scope.TargetDeclination = dec_degrees
+            except Exception:
+                pass
+
+            try:
+                self.scope.SyncToCoordinates(
+                    ra_hours,
+                    dec_degrees,
+                )
+            except Exception:
+                self.scope.SyncToTarget()
+
+            print(
+                f"✓ Sync完了: "
+                f"RA={ra_hours:.4f}h "
+                f"Dec={dec_degrees:.4f}°"
+            )
+
         except Exception as e:
-            raise RuntimeError(f"Sync実行エラー: {e}") from e
+            raise RuntimeError(
+                f"Sync実行エラー: {e}"
+            ) from e
     
     def get_capabilities(self) -> set[MountCapability]:
         """利用可能な機能一覧"""

@@ -1,16 +1,23 @@
 import argparse
 import time
 from datetime import datetime, timedelta, timezone
+import traceback
 
 from core.ascom import ASCOMTelescope, MountSimulator
 from core.astronomy import OrbitCalculator, TLELoader
 from core.tracking import Guider, GuiderConfig, ISSTracker, TrackingConfig
-from .utils.planet import get_object_coordinates
+from utils.planet import get_object_coordinates
 
 import threading
 import msvcrt
 
 JST = timezone(timedelta(hours=9))
+
+# テスト実行時
+# python main.py --mount ascom --allow-network --duration 60 --align-object venus --simulate-time "2026/07/13 18:17:00"
+
+# 実機実行
+# python main.py --mount ascom --allow-network --duration 300 --align-object venus
 
 
 def parse_args():
@@ -24,7 +31,7 @@ def parse_args():
     parser.add_argument(
         "--duration",
         type=float,
-        default=120.0,
+        default=300.0,
         help="追尾時間 [秒]",
     )
     parser.add_argument(
@@ -237,6 +244,24 @@ def main():
                 f"Dec={align_dec:.4f}°"
             )
 
+            print(
+                f"\n{args.align_object} が視野中央にあることを確認してください。"
+            )
+            input("Enterキーで位置合わせ（Sync）を実行します...")
+
+            mount.sync_to_coordinates(
+                align_ra,
+                align_dec,
+            )
+
+            mount_pos = mount.get_position()
+
+            print(
+                f"Sync後: "
+                f"RA={mount_pos.ra_hours:.4f}h "
+                f"Dec={mount_pos.dec_degrees:.4f}°"
+            )
+
         ####################################
         # Tracker
         ####################################
@@ -304,8 +329,11 @@ def main():
 
             print("Finished.")
 
-    except Exception as e:
-        print(e)
+    # except Exception as e:
+    #     print(e)
+
+    except Exception:
+        traceback.print_exc()
 
     finally:
         mount.disconnect()
