@@ -14,10 +14,10 @@ import msvcrt
 JST = timezone(timedelta(hours=9))
 
 # テスト実行時
-# python main.py --mount ascom --allow-network --duration 60 --align-object venus --simulate-time "2026/07/13 18:17:00"
+# python main.py --allow-network --duration 60 --align-object venus --simulate-time "2026/07/13 18:17:00"
 
 # 実機実行
-# python main.py --mount ascom --allow-network --duration 300 --align-object venus
+# python main.py --allow-network --duration 300 --align-object venus
 
 
 def parse_args():
@@ -25,7 +25,7 @@ def parse_args():
     parser.add_argument(
         "--mount",
         choices=["simulate", "ascom"],
-        default="simulate",
+        default="ascom",
         help="使用する架台。実機は ascom",
     )
     parser.add_argument(
@@ -261,6 +261,15 @@ def main():
                 f"RA={mount_pos.ra_hours:.4f}h "
                 f"Dec={mount_pos.dec_degrees:.4f}°"
             )
+
+            print("RA =", mount.scope.RightAscension)
+            print("Dec =", mount.scope.Declination)
+
+            try:
+                print("TargetRA =", mount.scope.TargetRightAscension)
+                print("TargetDec =", mount.scope.TargetDeclination)
+            except Exception as e:
+                print(e)
 
         ####################################
         # Tracker

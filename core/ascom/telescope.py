@@ -78,7 +78,7 @@ class ASCOMTelescope(MountInterface):
                 raise RuntimeError(
                     f"ドライバへの接続に失敗しました: {e}"
                 ) from e
-            
+                        
             self._is_connected = True
             
             # 機能確認
@@ -187,14 +187,6 @@ class ASCOMTelescope(MountInterface):
 
         if MountCapability.CAN_SLEW not in self._capabilities:
             raise RuntimeError("このドライバはSlewをサポートしていません")
-
-        if self.scope.AtPark:
-            print("Unparking...")
-            self.scope.Unpark()
-
-        if not self.scope.Tracking:
-            print("Tracking ON")
-            self.scope.Tracking = True
         
         # 座標値チェック
         if not (0 <= ra_hours <= 24):
