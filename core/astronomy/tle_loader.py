@@ -16,6 +16,7 @@ class TLELoader:
         local_path: Optional[str | Path] = None,
         allow_network: bool = False,
         timeout: int = 10,
+        force_reload: bool = False,
     ):
         """
         ISSのTLEを読み込む。
@@ -30,12 +31,13 @@ class TLELoader:
             candidates.append(Path(local_path))
         candidates.append(Path(DEFAULT_LOCAL_TLE_PATH))
 
-        for path in candidates:
-            if path.exists():
-                self._load_from_text(path.read_text(encoding="utf-8"))
-                return
+        if not force_reload:
+            for path in candidates:
+                if path.exists():
+                    self._load_from_text(path.read_text(encoding="utf-8"))
+                    return
 
-        if allow_network:
+        if allow_network or force_reload:
             text = requests.get(TLE_URL, timeout=timeout).text
             self._load_from_text(text)
             return

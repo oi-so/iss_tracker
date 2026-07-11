@@ -77,6 +77,12 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--force-reload",
+        action="store_true",
+        help="TLEを強制的に再読み込み",
+    )
+
+    parser.add_argument(
         "--align-object",
         type=str,
         default=None,
@@ -158,6 +164,7 @@ def main():
     tle.update(
         local_path=args.tle_file,
         allow_network=args.allow_network,
+        force_reload=args.force_reload,
     )
 
     orbit = OrbitCalculator(tle.satellite)
