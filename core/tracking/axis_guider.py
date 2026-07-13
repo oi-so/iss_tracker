@@ -12,6 +12,7 @@ class MoveAxisConfig:
         (0.066850, 0.208904),
     ]
 
+    velocity_scale = 1.15  # ISS角速度に対する補正倍率
     dead_band_deg = 0.0005
 
 
@@ -33,15 +34,8 @@ class MoveAxisGuider(Guider):
         位置誤差による補正を少量加える
         """
 
-        ra_rate = (
-            ra_velocity_deg_per_sec
-            + self.config.kp * ra_error_deg
-        )
-
-        dec_rate = (
-            dec_velocity_deg_per_sec
-            + self.config.kp * dec_error_deg
-        )
+        ra_rate = ra_velocity_deg_per_sec * self.config.velocity_scale + self.config.kp * ra_error_deg
+        dec_rate = dec_velocity_deg_per_sec * self.config.velocity_scale + self.config.kp * dec_error_deg
 
         self._execute_move_axis(
             ra_rate,
@@ -63,6 +57,8 @@ class MoveAxisGuider(Guider):
 
         if abs(dec_rate) < self.config.dead_band_deg:
             dec_rate = 0
+
+        # print(f"RA速度={-ra_rate:.6f}°/s, DEC速度={dec_rate:.6f}°/s")
 
         # RA方向は符号反転（現在の赤道儀設定に合わせる）
         self.mount.move_axis(0, -ra_rate)

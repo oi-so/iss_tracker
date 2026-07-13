@@ -3,9 +3,9 @@ import time
 from datetime import datetime, timedelta, timezone
 import traceback
 
-from core.ascom import ASCOMTelescope, MountSimulator, telescope
+from core.ascom import ASCOMTelescope, MountSimulator
 from core.astronomy import OrbitCalculator, TLELoader
-from core.tracking import MoveAxisGuider, MoveAxisConfig, ISSTracker, TrackingConfig
+from core.tracking import MoveAxisGuider, MoveAxisConfig, ISSTracker, TrackingConfig, DutyCycleGuider, DutyCycleConfig
 from utils.planet import get_object_coordinates
 
 import threading
@@ -196,15 +196,6 @@ def main():
                 + timedelta(seconds=args.start_in)
             )
 
-            wait = (
-                track_start
-                - datetime.now(timezone.utc)
-            ).total_seconds()
-
-            if wait > 0:
-                print(f"Start in {wait:.1f}s")
-                time.sleep(wait)
-
         else:
 
             track_start = (
@@ -278,11 +269,22 @@ def main():
             except Exception as e:
                 print(e)
 
+
+        # 待機
+        wait = (
+                track_start
+                - datetime.now(timezone.utc)
+            ).total_seconds()
+
+        if wait > 0:
+            print(f"Start in {wait:.1f}s")
+            time.sleep(wait)
+
         ####################################
         # Tracker
         ####################################
 
-        guider = MoveAxisGuider(mount, MoveAxisConfig())
+        guider = DutyCycleGuider(mount, DutyCycleConfig(pulse_interval_sec=args.interval))
 
         tracking_config = TrackingConfig()
         tracking_config.pulse_interval_sec = args.interval

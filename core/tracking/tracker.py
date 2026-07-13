@@ -213,6 +213,7 @@ class ISSTracker:
                 dec_error_deg = iss_dec_deg - mount_dec_deg
 
                 if abs(ra_error_deg) > 2 or abs(dec_error_deg) > 2:
+                    print(f"追尾ずれ過大のため再導入: RA誤差={ra_error_deg:.2f}°, Dec誤差={dec_error_deg:.2f}°")
                     self.guider.stop()
                     self.reacquire(start_time + timedelta(seconds=elapsed))
                     next_pulse = time.perf_counter()
@@ -254,14 +255,22 @@ class ISSTracker:
         print("追尾停止要求")
 
     def reacquire(self, target_time):
-
         skyfield_time = self.orbit.ts.from_datetime(target_time)
-        pos = self.orbit.get_position_at(skyfield_time)
+        current_pos = self.mount.get_position()
+        current_ra_deg = CoordinateConverter.ra_hours_to_degrees(current_pos.ra_hours)
+        current_dec_deg = current_pos.dec_degrees
+
+        now_pos = self.orbit.get_position_at(skyfield_time)
+        target_ra_deg = CoordinateConverter.ra_hours_to_degrees(now_pos.ra.hours)
+        target_dec_deg = now_pos.dec.degrees
+
+        slew_time = self._estimate_slew_time(
+            current_ra_deg, current_dec_deg, target_ra_deg, target_dec_deg
+        )
+        future_pos = self.orbit.get_position_after(skyfield_time, slew_time)
 
         self.mount.slew_to_coordinates(
-            pos.ra.hours,
-            pos.dec.degrees,
-            async_=False,
+            future_pos.ra.hours, future_pos.dec.degrees, async_=False
         )
     
     def _estimate_slew_time(
