@@ -1,9 +1,14 @@
-from .guider import Guider, GuiderConfig
+from .guider import Guider
 from .tracker import ISSTracker, TrackingConfig
+from .axis_guider import MoveAxisGuider, MoveAxisConfig
+from .pulse_guider import PulseGuider, PulseGuiderConfig
 
 __all__ = [
 	"Guider",
-	"GuiderConfig",
+	"MoveAxisGuider",
+	"MoveAxisConfig",
+	"PulseGuider",
+	"PulseGuiderConfig",
 	"ISSTracker",
 	"TrackingConfig",
 ]

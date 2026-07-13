@@ -5,7 +5,7 @@ ISS軌道計算と赤道儀制御を統合
 """
 
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from core.ascom.interface import MountInterface
 from core.astronomy.orbit_calculator import OrbitCalculator
@@ -15,7 +15,7 @@ from utils.units import CoordinateConverter
 
 class TrackingConfig:
     """追尾設定"""
-    pulse_interval_sec: float = 0.05  # パルス間隔（秒）
+    pulse_interval_sec: float = 0.5  # パルス間隔（秒）
     max_slew_time_sec: float = 60.0   # Slew最大時間（秒）
     slew_padding_sec: float = 5.0     # Slew時間の安全マージン（秒）
 
@@ -157,6 +157,10 @@ class ISSTracker:
             iteration = 0
             
             while self.is_tracking:
+                sleep_time = next_pulse - time.perf_counter()
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+
                 elapsed = time.perf_counter() - start_perf
                 
                 # 終了チェック
@@ -207,14 +211,21 @@ class ISSTracker:
                 # 位置誤差計算
                 ra_error_deg = self._shortest_angle_diff_deg(mount_ra_deg, iss_ra_deg)
                 dec_error_deg = iss_dec_deg - mount_dec_deg
-                
-                # ガイド補正実行
-                self.guider.guide(
-                    ra_velocity_deg_per_sec,
-                    dec_velocity_deg_per_sec,
-                    ra_error_deg,
-                    dec_error_deg
-                )
+
+                if abs(ra_error_deg) > 2 or abs(dec_error_deg) > 2:
+                    self.guider.stop()
+                    self.reacquire(start_time + timedelta(seconds=elapsed))
+                    next_pulse = time.perf_counter()
+                    iteration += 1
+                    continue
+                else:
+                    # ガイド補正実行
+                    self.guider.guide(
+                        ra_velocity_deg_per_sec,
+                        dec_velocity_deg_per_sec,
+                        ra_error_deg,
+                        dec_error_deg
+                    )
                 
                 # ロギング（10回に1回）
                 if iteration % 10 == 0:
@@ -225,18 +236,15 @@ class ISSTracker:
                         f"Err: {ra_error_deg:6.2f}°/{dec_error_deg:6.2f}°"
                     )
                 
-                # 次のパルスまで待機
-                sleep_time = next_pulse - time.perf_counter()
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
-                
                 next_pulse += self.config.pulse_interval_sec
                 iteration += 1
         
         except KeyboardInterrupt:
+            self.guider.stop()
             print("追尾中止 (ユーザー入力)")
         except Exception as e:
             print(f"追尾エラー: {e}")
+            self.guider.stop()
             self.is_tracking = False
             raise
     
@@ -244,6 +252,17 @@ class ISSTracker:
         """追尾停止"""
         self.is_tracking = False
         print("追尾停止要求")
+
+    def reacquire(self, target_time):
+
+        skyfield_time = self.orbit.ts.from_datetime(target_time)
+        pos = self.orbit.get_position_at(skyfield_time)
+
+        self.mount.slew_to_coordinates(
+            pos.ra.hours,
+            pos.dec.degrees,
+            async_=False,
+        )
     
     def _estimate_slew_time(
         self,

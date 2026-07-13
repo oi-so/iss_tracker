@@ -375,6 +375,26 @@ class ASCOMTelescope(MountInterface):
         
         except Exception as e:
             print(f"⚠ 機能検出エラー: {e}")
+
+
+    def move_axis(
+        self,
+        axis: int,
+        rate: float,
+    ) -> None:
+
+        if not self.is_connected():
+            raise RuntimeError("赤道儀が未接続です")
+
+        if MountCapability.CAN_MOVE_AXIS not in self._capabilities:
+            raise RuntimeError("MoveAxis非対応")
+        
+        try:
+            self.scope.MoveAxis(axis, rate)
+        except Exception as e:
+            raise RuntimeError(
+                f"MoveAxis実行エラー: {e}"
+            ) from e
     
     @staticmethod
     def _safe_getattr(obj, attr_name: str, default=False):

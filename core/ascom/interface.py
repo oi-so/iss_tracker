@@ -135,7 +135,7 @@ class MountInterface(ABC):
         duration_ms: int
     ) -> None:
         """
-        PulseGuide実行
+        PulseGuide実行(使用非推奨)
         
         微小な補正移動を実行。推尾制御で使用。
         
@@ -179,3 +179,21 @@ class MountInterface(ABC):
             set[MountCapability]: サポートされている機能
         """
         pass
+
+
+
+    # @abstractmethod
+    def move_axis(
+        self,
+        axis: int,
+        rate: float,
+    ) -> None:
+        """
+        軸を一定速度で回転させる
+
+        axis(0=RA,1=DEC)方向に、rate(度/秒)で回転させる。
+
+        Args:
+            axis: 0=RA, 1=DEC
+            rate: 回転速度（度/秒）、正負で方向指定
+        """

@@ -39,6 +39,11 @@ class TLELoader:
 
         if allow_network or force_reload:
             text = requests.get(TLE_URL, timeout=timeout).text
+            print(f"ISS TLEをネットワークから取得しました: {TLE_URL}")
+            # ISS TLEを上書き保存
+            with open(DEFAULT_LOCAL_TLE_PATH, "w", encoding="utf-8") as f:
+                f.write(text)
+
             self._load_from_text(text)
             return
 

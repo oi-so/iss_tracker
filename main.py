@@ -3,9 +3,9 @@ import time
 from datetime import datetime, timedelta, timezone
 import traceback
 
-from core.ascom import ASCOMTelescope, MountSimulator
+from core.ascom import ASCOMTelescope, MountSimulator, telescope
 from core.astronomy import OrbitCalculator, TLELoader
-from core.tracking import Guider, GuiderConfig, ISSTracker, TrackingConfig
+from core.tracking import MoveAxisGuider, MoveAxisConfig, ISSTracker, TrackingConfig
 from utils.planet import get_object_coordinates
 
 import threading
@@ -282,10 +282,7 @@ def main():
         # Tracker
         ####################################
 
-        guider = Guider(
-            mount,
-            GuiderConfig(),
-        )
+        guider = MoveAxisGuider(mount, MoveAxisConfig())
 
         tracking_config = TrackingConfig()
         tracking_config.pulse_interval_sec = args.interval
@@ -319,11 +316,14 @@ def main():
         ####################################
         # ISS追尾
         ####################################
-
-        tracker.start_tracking(
-            start_time=track_start,
-            duration_sec=args.duration,
-        )
+        
+        try:
+            tracker.start_tracking(
+                start_time=track_start,
+                duration_sec=args.duration,
+            )
+        finally:
+            guider.stop()
 
         ####################################
         # アライメント天体へ戻る
