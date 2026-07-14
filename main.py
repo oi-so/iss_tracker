@@ -5,6 +5,7 @@ import traceback
 
 from core.ascom import ASCOMTelescope, MountSimulator
 from core.astronomy import OrbitCalculator, TLELoader, calculate_lst
+from core.astronomy.pass_analyzer import PassAnalyzer
 from core.tracking import MoveAxisGuider, MoveAxisConfig, ISSTracker, TrackingConfig, DutyCycleGuider, DutyCycleConfig
 from utils.planet import get_object_coordinates
 
@@ -117,6 +118,12 @@ def parse_args():
         "--home-sync",
         action="store_true",
         help="ホームポジションでSyncする (RA=現在のLST, Dec=90°)",
+    )
+
+    parser.add_argument(
+        "--wait-after-flip",
+        action="store_true",
+        help="子午線反転後で待機する",
     )
 
     return parser.parse_args()
@@ -259,6 +266,27 @@ def main():
             ),
         )
 
+
+
+        ####################################
+        # ISSの通過時間と子午線反転を計算
+        ####################################
+        rise_time = track_start
+        set_time = track_start + timedelta(seconds=args.duration)
+
+        analyzer = PassAnalyzer(orbit)
+
+        analysis = analyzer.analyze(
+            rise_time=rise_time,
+            track_start=track_start,
+            set_time=set_time,
+        )
+
+
+        print(
+            f"Flip required: {analysis.requires_flip}, {args.wait_after_flip}")
+
+
         ####################################
         # アライメント天体保存
         ####################################
@@ -319,16 +347,43 @@ def main():
                 except Exception as e:
                     print(e)
 
+        
+        if args.wait_after_flip and analysis.requires_flip:
+            print(
+                f"Waiting for flip at {analysis.flip_time.astimezone(JST).strftime('%Y/%m/%d %H:%M:%S JST')}..."
+            )
+            track_start = analysis.recommended_start
 
-        # 待機
-        wait = (
-                track_start
+            wait = analysis.waiting_position
+
+            mount.slew_to_coordinates(
+                wait.ra_hours,
+                wait.dec_degrees,
+                async_=True,
+            )
+
+            mount.wait_slew()
+
+            remaining = (
+                wait.time
                 - datetime.now(timezone.utc)
             ).total_seconds()
 
-        if wait > 0:
-            print(f"Start in {wait:.1f}s")
-            time.sleep(wait)
+            if remaining > 0:
+                time.sleep(remaining)
+
+        else:
+
+
+            # 待機
+            wait = (
+                    track_start
+                    - datetime.now(timezone.utc)
+                ).total_seconds()
+
+            if wait > 0:
+                print(f"Start in {wait:.1f}s")
+                time.sleep(wait)
 
         ####################################
         # Tracker
