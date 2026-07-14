@@ -1,5 +1,3 @@
-from core.astronomy.predictor import Predictor
-from core.astronomy.orbit_calculator import OrbitCalculator
 from core.astronomy.tle_loader import TLELoader
 
 

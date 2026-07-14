@@ -331,4 +331,4 @@ class ISSTracker:
     def adjust_offset(self, delta_sec: float) -> None:
         """追尾時刻オフセットを増減する"""
         self.offset_sec += delta_sec
-        print(f"\nTime Offset = {self.offset_sec:+.2f} s")
+        print(f"Time Offset = {self.offset_sec:+.2f} s")

@@ -9,6 +9,7 @@ OBSERVER = wgs84.latlon(
     elevation_m=95,
 )
 
+
 TLE_URL = "https://celestrak.org/NORAD/elements/stations.txt"
 
 # オフライン環境向け: 既定のローカルTLEファイル

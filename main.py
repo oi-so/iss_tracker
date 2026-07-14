@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import traceback
 
 from core.ascom import ASCOMTelescope, MountSimulator
-from core.astronomy import OrbitCalculator, TLELoader
+from core.astronomy import OrbitCalculator, TLELoader, calculate_lst
 from core.tracking import MoveAxisGuider, MoveAxisConfig, ISSTracker, TrackingConfig, DutyCycleGuider, DutyCycleConfig
 from utils.planet import get_object_coordinates
 
@@ -18,6 +18,19 @@ JST = timezone(timedelta(hours=9))
 
 # 実機実行
 # python main.py --allow-network --duration 300 --align-object venus
+
+
+RATE_TABLE = {
+    b'1': 0.005,
+    b'2': 0.01,
+    b'3': 0.02,
+    b'4': 0.04,
+    b'5': 0.06,
+    b'6': 0.08,
+    b'7': 0.10,
+    b'8': 0.15,
+    b'9': 0.20,
+}
 
 
 def parse_args():
@@ -100,6 +113,12 @@ def parse_args():
         help="初期アライメントを行った天体。追尾終了後はこの天体へ戻る。",
     )
 
+    parser.add_argument(
+        "--home-sync",
+        action="store_true",
+        help="ホームポジションでSyncする (RA=現在のLST, Dec=90°)",
+    )
+
     return parser.parse_args()
 
 
@@ -109,7 +128,7 @@ def build_mount(kind: str):
     return MountSimulator()
 
 
-def keyboard_loop(tracker):
+def keyboard_loop(tracker, mount):
     print(
         "\n=== Keyboard ===\n"
         "[←] または A : -0.1 s\n"
@@ -119,22 +138,34 @@ def keyboard_loop(tracker):
         "[Q]          : 終了\n"
     )
 
+    manual_speed = 0.01
+    last_manual = 0.0
+
     while tracker.is_tracking:
         if not msvcrt.kbhit():
             time.sleep(0.05)
             continue
 
         key = msvcrt.getch()
+        if time.perf_counter() - last_manual > 0.2:
+            mount.move_axis(0, 0)
+            mount.move_axis(1, 0)
 
         # 矢印キー
         if key == b'\xe0':
             key = msvcrt.getch()
-
             if key == b'K':      # ←
-                tracker.adjust_offset(-0.1)
-
+                mount.move_axis(0, +manual_speed)
+                last_manual = time.perf_counter()
             elif key == b'M':    # →
-                tracker.adjust_offset(+0.1)
+                mount.move_axis(0, -manual_speed)
+                last_manual = time.perf_counter()
+            elif key == b'H':    # ↑
+                mount.move_axis(1, +manual_speed)
+                last_manual = time.perf_counter()
+            elif key == b'P':    # ↓
+                mount.move_axis(1, -manual_speed)
+                last_manual = time.perf_counter()
 
         else:
             key = key.lower()
@@ -154,6 +185,9 @@ def keyboard_loop(tracker):
             elif key == b'q':
                 tracker.stop_tracking()
                 break
+            elif key in RATE_TABLE:
+                manual_speed = RATE_TABLE[key]
+                print(f"Manual speed = {manual_speed:.3f}")
 
 
 def main():
@@ -172,8 +206,12 @@ def main():
     mount = build_mount(args.mount)
     mount.connect()
 
-    try:
+    if args.home_sync:
+        ra = calculate_lst()
+        mount.sync_home_position(ra)
 
+
+    try:
         try:
             mount_pos = mount.get_position()
             print(
@@ -242,32 +280,44 @@ def main():
                 f"Dec={align_dec:.4f}°"
             )
 
-            print(
-                f"\n{args.align_object} が視野中央にあることを確認してください。"
-            )
-            input("Enterキーで位置合わせ（Sync）を実行します...")
+            if args.home_sync:
+                print(
+                    f"\n{args.align_object} へ移動します。"
+                )
+                mount.slew_to_coordinates(
+                    align_ra,
+                    align_dec,
+                    async_=True,
+                )
+                mount.wait_slew()
 
-            mount.sync_to_coordinates(
-                align_ra,
-                align_dec,
-            )
+            else:
+                print(
+                    f"\n{args.align_object} が視野中央にあることを確認してください。"
+                )
+                input("Enterキーで位置合わせ（Sync）を実行します...")
 
-            mount_pos = mount.get_position()
+                mount.sync_to_coordinates(
+                    align_ra,
+                    align_dec,
+                )
 
-            print(
-                f"Sync後: "
-                f"RA={mount_pos.ra_hours:.4f}h "
-                f"Dec={mount_pos.dec_degrees:.4f}°"
-            )
+                mount_pos = mount.get_position()
 
-            print("RA =", mount.scope.RightAscension)
-            print("Dec =", mount.scope.Declination)
+                print(
+                    f"Sync後: "
+                    f"RA={mount_pos.ra_hours:.4f}h "
+                    f"Dec={mount_pos.dec_degrees:.4f}°"
+                )
 
-            try:
-                print("TargetRA =", mount.scope.TargetRightAscension)
-                print("TargetDec =", mount.scope.TargetDeclination)
-            except Exception as e:
-                print(e)
+                print("RA =", mount.scope.RightAscension)
+                print("Dec =", mount.scope.Declination)
+
+                try:
+                    print("TargetRA =", mount.scope.TargetRightAscension)
+                    print("TargetDec =", mount.scope.TargetDeclination)
+                except Exception as e:
+                    print(e)
 
 
         # 待機
@@ -284,7 +334,7 @@ def main():
         # Tracker
         ####################################
 
-        guider = DutyCycleGuider(mount, DutyCycleConfig(pulse_interval_sec=args.interval))
+        guider = MoveAxisGuider(mount, MoveAxisConfig(), args.interval)
 
         tracking_config = TrackingConfig()
         tracking_config.pulse_interval_sec = args.interval
@@ -309,7 +359,7 @@ def main():
 
         keyboard_thread = threading.Thread(
             target=keyboard_loop,
-            args=(tracker,),
+            args=(tracker,mount,),
             daemon=True,
         )
 

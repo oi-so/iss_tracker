@@ -44,7 +44,7 @@ REPEAT_COUNT = 5
 NEGATIVE_RATES = [-0.05, -0.10, -0.15]
 
 # ---- 0.05-0.06 境界の絞り込み用（追加） ----
-FINE_BOUNDARY_RATES = [0.050, 0.052, 0.054, 0.055, 0.056, 0.057, 0.058, 0.059, 0.060]
+FINE_BOUNDARY_RATES = [0.050, 0.052, 0.054, 0.056, 0.058, 0.060]
 
 # ---- 高速域の存在確認用（追加・要注意） ----
 # 小さい値から徐々に上げていき、途中で明らかにおかしければ手動で中断してください
@@ -57,7 +57,7 @@ LOW_CLASS_DURATION = 5.0
 results = []
 
 
-def log_result(axis, rate, actual_rate, duration):
+def log_result(axis, rate, actual_rate, duration, delta_deg):
     ratio = actual_rate / rate if rate else 0.0
     print(
         f"axis={axis} 指令rate={rate:+.4f}deg/s "
@@ -70,6 +70,7 @@ def log_result(axis, rate, actual_rate, duration):
             "axis": axis,
             "commanded_rate": rate,
             "actual_rate": actual_rate,
+            "delta_deg": delta_deg,
             "ratio": ratio,
             "duration_sec": duration,
         }
@@ -110,12 +111,13 @@ def calibrate_rate(mount, axis, rate, duration_sec=5.0):
     pos_after = mount.get_position()
 
     if axis == 0:
-        delta = (pos_after.ra_hours - pos_before.ra_hours) * 15  # h -> deg
+        delta = (pos_after.ra_hours - pos_before.ra_hours + 12) % 24 - 12
+        delta *= 15  # h -> deg
     else:
         delta = pos_after.dec_degrees - pos_before.dec_degrees
 
     actual_rate = delta / duration_sec
-    log_result(axis, rate, actual_rate, duration_sec)
+    log_result(axis, rate, actual_rate, duration_sec, delta)
     return actual_rate
 
 
@@ -175,17 +177,22 @@ def save_csv(path):
         writer.writerows(results)
     print(f"\n結果を {path} に保存しました（{len(results)}件）")
 
-
 def main():
     mount = ASCOMTelescope()
     mount.connect()
 
+    rates = [mount.scope.AxisRates(0), mount.scope.AxisRates(1)]
+
+    for axis in [0, 1]:
+        for i in range(rates[axis].Count):
+            r = rates[axis].Item(i + 1)   # COMコレクションなので1始まりの可能性あり
+            print(f"axis={axis} rate {i}: Min={r.Minimum:.4f}, Max={r.Maximum:.4f}")
     try:
         # Dec軸(axis=1)は前回大部分やっているので、
         # 今回重点的に見たい「高速域の先」と「0.05-0.06境界」を優先。
         # 必要なければ include_high_speed=False や
         # run_axis_suite の呼び出し自体をコメントアウトしてください。
-        run_axis_suite(mount, axis=1, include_high_speed=True)
+        # run_axis_suite(mount, axis=1, include_high_speed=True)
 
         # RA軸は今回ほぼ未実施なので、通常域からまとめて実施
         run_axis_suite(mount, axis=0, include_high_speed=True)
@@ -202,7 +209,7 @@ def main():
             print(f"停止コマンド送信エラー: {e}")
 
     finally:
-        # save_csv(CSV_PATH)
+        save_csv(CSV_PATH)
         mount.disconnect()
 
 

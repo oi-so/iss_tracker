@@ -351,6 +351,14 @@ class ASCOMTelescope(MountInterface):
     def get_capabilities(self) -> set[MountCapability]:
         """利用可能な機能一覧"""
         return self._capabilities.copy()
+
+    def sync_home_position(self, ra_hours: float) -> None:
+        """ホームポジションでSyncする"""
+
+        self.sync_to_coordinates(
+            ra_hours=ra_hours,
+            dec_degrees=90.0,
+        )
     
     def _detect_capabilities(self) -> None:
         """利用可能な機能を検出"""
