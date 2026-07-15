@@ -3,6 +3,8 @@ import time
 from datetime import datetime, timedelta, timezone
 import traceback
 
+from matplotlib.pylab import rint
+
 from core.ascom import ASCOMTelescope, MountSimulator
 from core.astronomy import OrbitCalculator, TLELoader, calculate_lst
 from core.astronomy.pass_analyzer import PassAnalyzer
@@ -138,15 +140,15 @@ def build_mount(kind: str):
 def keyboard_loop(tracker, mount):
     print(
         "\n=== Keyboard ===\n"
-        "[←] または A : -0.1 s\n"
-        "[→] または D : +0.1 s\n"
-        "[Z]          : -1.0 s\n"
-        "[C]          : +1.0 s\n"
-        "[Q]          : 終了\n"
+        "Arrow keys: Adjust RA/Dec\n"
+        "[R]          : Reset adjustments\n"
+        "[A] / [D]    : Adjust time offset -0.1s / +0.1s\n"
+        "[Z] / [C]    : Adjust time offset -1.0s / +1.0s\n"
+        "[1]-[9]      : Adjust manual speed\n"
+        "[Q]          : Quit\n"
     )
 
-    manual_speed = 0.01
-    last_manual = 0.0
+    manual_speed = RATE_TABLE[b'1']
 
     while tracker.is_tracking:
         if not msvcrt.kbhit():
@@ -154,47 +156,52 @@ def keyboard_loop(tracker, mount):
             continue
 
         key = msvcrt.getch()
-        if time.perf_counter() - last_manual > 0.2:
-            mount.move_axis(0, 0)
-            mount.move_axis(1, 0)
 
         # 矢印キー
         if key == b'\xe0':
             key = msvcrt.getch()
             if key == b'K':      # ←
-                mount.move_axis(0, +manual_speed)
-                last_manual = time.perf_counter()
+                tracker.adjust_locate(-manual_speed, 0)
+                print("←")
             elif key == b'M':    # →
-                mount.move_axis(0, -manual_speed)
-                last_manual = time.perf_counter()
+                tracker.adjust_locate(+manual_speed, 0)
+                print("→")
             elif key == b'H':    # ↑
-                mount.move_axis(1, +manual_speed)
-                last_manual = time.perf_counter()
+                tracker.adjust_locate(0, manual_speed)
+                print("↑")
             elif key == b'P':    # ↓
-                mount.move_axis(1, -manual_speed)
-                last_manual = time.perf_counter()
+                tracker.adjust_locate(0, -manual_speed)
+                print("↓")
 
         else:
             key = key.lower()
 
             if key == b'a':
                 tracker.adjust_offset(-0.1)
+                print("Offset -0.1s")
 
             elif key == b'd':
                 tracker.adjust_offset(+0.1)
+                print("Offset +0.1s")
 
             elif key == b'z':
                 tracker.adjust_offset(-1.0)
+                print("Offset -1.0s")
 
             elif key == b'c':
                 tracker.adjust_offset(+1.0)
-
+                print("Offset +1.0s")
+            elif key == b'r':
+                tracker.reset_locate()
+                print("Reset adjustments")
             elif key == b'q':
                 tracker.stop_tracking()
                 break
             elif key in RATE_TABLE:
                 manual_speed = RATE_TABLE[key]
                 print(f"Manual speed = {manual_speed:.3f}")
+
+        time.sleep(0.05)
 
 
 def main():

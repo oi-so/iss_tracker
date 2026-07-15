@@ -10,7 +10,7 @@ OBSERVER = wgs84.latlon(
 )
 
 
-TLE_URL = "https://celestrak.org/NORAD/elements/stations.txt"
+TLE_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle"
 
 # オフライン環境向け: 既定のローカルTLEファイル
 DEFAULT_LOCAL_TLE_PATH = Path("data") / "iss.tle"

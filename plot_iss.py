@@ -32,6 +32,12 @@ def parse_args():
         help="計算間隔(秒)",
     )
 
+    parser.add_argument(
+        "--force-reload",
+        action="store_true",
+        help="TLEをネットワークから強制取得する",
+    )
+
     return parser.parse_args()
 
 
@@ -136,7 +142,7 @@ def main():
     print("=== ISS Orbit Plot ===")
 
     loader = TLELoader()
-    loader.update(allow_network=True, force_reload=True)
+    loader.update(allow_network=True, force_reload=args.force_reload)
 
     print(
         f"TLE loaded: {loader.satellite.name}"
@@ -269,18 +275,6 @@ def main():
     ]
 
 
-    for i in indexes:
-        plt.annotate(
-            times[i].strftime("%H:%M:%S"),
-            (
-                az[i],
-                alt[i]
-            ),
-            textcoords="offset points",
-            xytext=(5, 5),
-            fontsize=9
-        )
-
     print("\n=== ISS Passes ===")
 
     for i, p in enumerate(passes):
@@ -303,18 +297,6 @@ def main():
                 f"ALT={p[key].altitude.degrees:.1f}°"
             )
 
-    max_i = max(
-        range(len(alt)),
-        key=lambda i: alt[i]
-    )
-
-    plt.annotate(
-        f"MAX ALT\n{times[max_i].strftime('%H:%M:%S')}",
-        (az[max_i], alt[max_i]),
-        xytext=(20,20),
-        textcoords="offset points"
-    )
-
     plt.xlabel("Azimuth (deg)")
     plt.ylabel("Altitude (deg)")
     plt.title(
@@ -322,7 +304,7 @@ def main():
     )
 
     plt.xlim(0,360)
-    plt.ylim(-5,90)
+    plt.ylim(-10,90)
 
     plt.grid()
 

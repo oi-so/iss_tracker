@@ -48,6 +48,8 @@ class ISSTracker:
         self.guider = guider or Guider(mount)
         self.config = config or TrackingConfig()
         self.offset_sec = 0.0  # 追尾開始時刻のオフセット（秒）
+        self.ra_bias_deg = 0.0  # RA微調整（度）
+        self.dec_bias_deg = 0.0  # Dec微調整（度）
         
         self.is_tracking = False
     
@@ -84,9 +86,9 @@ class ISSTracker:
         current_iss_pos = self.orbit.get_position_at(skyfield_time)
         
         target_ra_deg = CoordinateConverter.ra_hours_to_degrees(
-            current_iss_pos.ra.hours
+            current_iss_pos.ra.hours + self.ra_bias_deg
         )
-        target_dec_deg = current_iss_pos.dec.degrees
+        target_dec_deg = current_iss_pos.dec.degrees + self.dec_bias_deg
         
         # Slew時間推定
         slew_time = self._estimate_slew_time(
@@ -183,14 +185,21 @@ class ISSTracker:
                 # ISS位置（度）
                 iss_ra_deg = CoordinateConverter.ra_hours_to_degrees(
                     current_iss_pos.ra.hours
-                )
-                iss_dec_deg = current_iss_pos.dec.degrees
+                ) + self.ra_bias_deg
+                iss_dec_deg = current_iss_pos.dec.degrees + self.dec_bias_deg
                 
                 # ISS速度計算
-                future_ra_deg = CoordinateConverter.ra_hours_to_degrees(
-                    future_iss_pos.ra.hours
+                future_ra_deg = (
+                    CoordinateConverter.ra_hours_to_degrees(
+                        future_iss_pos.ra.hours
+                    )
+                    + self.ra_bias_deg
                 )
-                future_dec_deg = future_iss_pos.dec.degrees
+
+                future_dec_deg = (
+                    future_iss_pos.dec.degrees
+                    + self.dec_bias_deg
+                )
                 
                 ra_velocity_deg_per_sec = (
                     (self._shortest_angle_diff_deg(iss_ra_deg, future_ra_deg)) /
@@ -235,6 +244,7 @@ class ISSTracker:
                         f"ISS: {iss_ra_deg:6.2f}°/{iss_dec_deg:6.2f}° | "
                         f"Mount: {mount_ra_deg:6.2f}°/{mount_dec_deg:6.2f}° | "
                         f"Err: {ra_error_deg:6.2f}°/{dec_error_deg:6.2f}°"
+                        f" | (ΔRA={self.ra_bias_deg:+.2f}°, ΔDec={self.dec_bias_deg:+.2f}°)"
                     )
                 
                 next_pulse += self.config.pulse_interval_sec
@@ -261,8 +271,8 @@ class ISSTracker:
         current_dec_deg = current_pos.dec_degrees
 
         now_pos = self.orbit.get_position_at(skyfield_time)
-        target_ra_deg = CoordinateConverter.ra_hours_to_degrees(now_pos.ra.hours)
-        target_dec_deg = now_pos.dec.degrees
+        target_ra_deg = CoordinateConverter.ra_hours_to_degrees(now_pos.ra.hours) + self.ra_bias_deg
+        target_dec_deg = now_pos.dec.degrees + self.dec_bias_deg
 
         slew_time = self._estimate_slew_time(
             current_ra_deg, current_dec_deg, target_ra_deg, target_dec_deg
@@ -332,3 +342,18 @@ class ISSTracker:
         """追尾時刻オフセットを増減する"""
         self.offset_sec += delta_sec
         print(f"Time Offset = {self.offset_sec:+.2f} s")
+
+
+    def adjust_locate(self, delta_ra_deg: float, delta_dec_deg: float) -> None:
+        """赤道儀の現在位置を微調整する"""
+        self.ra_bias_deg += delta_ra_deg
+        self.dec_bias_deg += delta_dec_deg
+
+    def reset_locate(self) -> None:
+        """赤道儀の現在位置の微調整をリセットする"""
+        self.ra_bias_deg = 0.0
+        self.dec_bias_deg = 0.0
+
+    def get_locate_bias(self) -> tuple[float, float]:
+        """赤道儀の現在位置の微調整値を取得する"""
+        return self.ra_bias_deg, self.dec_bias_deg
