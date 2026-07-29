@@ -3,4 +3,4 @@
 __pycache__
 *.bsp
 .vscode
-data
+/data/
