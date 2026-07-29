@@ -156,6 +156,7 @@ def keyboard_loop(tracker, mount):
             continue
 
         key = msvcrt.getch()
+        print("op: ", end="")
 
         # 矢印キー
         if key == b'\xe0':

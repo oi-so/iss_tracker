@@ -1,20 +1,23 @@
 from skyfield.api import load
 
+SKYFIELD_NAMES = {
+    "sun": "sun",
+    "moon": "moon",
+    "mercury": "mercury",
+    "venus": "venus",
+    "mars": "mars barycenter",
+    "jupiter": "jupiter barycenter",
+    "saturn": "saturn barycenter",
+    "uranus": "uranus barycenter",
+    "neptune": "neptune barycenter",
+}
+
 
 def get_object_coordinates(name: str, orbit, utc_time):
-    """
-    指定した天体の現在の赤経・赤緯を返す
-
-    Returns
-    -------
-    ra_hours
-    dec_degrees
-    """
-
     eph = load("de440s.bsp")
 
     earth = eph["earth"]
-    target = eph[name]
+    target = eph[SKYFIELD_NAMES[name]]
 
     t = orbit.ts.from_datetime(utc_time)
 
